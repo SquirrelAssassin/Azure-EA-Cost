@@ -1,15 +1,25 @@
-﻿# Base Info
-    [CmdletBinding()]
+﻿ # Base Info
     Param (
         [Parameter(Mandatory=$false)]
         [int32]$DaysToGoBack=0,
-       [Parameter(Mandatory=$true)]
-        [string]$EnrollmentNumber="",
         [Parameter(Mandatory=$true)]
-        [string]$AccessKey="",
+        [int32]$EnrollmentNumber="short number",
+        [Parameter(Mandatory=$true)]
+        [string]$AccessKey="very long access key",
         [Parameter(Mandatory=$false)]
-        [switch]$DailyDetails=$false
+        [switch]$DailyDetails=$false,
+        [Parameter(Mandatory=$false)]
+        [switch]$SMTPSendEmail=$false,
+        [Parameter(Mandatory=$false)]
+        [string]$SMTPServer="smtp.office365.com",
+        [Parameter(Mandatory=$false)]
+        [string]$SMTPAutherizedUser="",
+        [Parameter(Mandatory=$false)]
+        [string]$SMTPAuthorizedPassword="",
+        [Parameter(Mandatory=$false)]
+        [string]$SMTPSendToUsers=""
         )
+
 
 # Calculate The Two Months To Pull Down
 $Date = Get-Date
@@ -62,6 +72,7 @@ ForEach ($subscription in $CurrentMonthArray) {
 
 # Show Info For A Single Day
 ## Get Dates
+$Body = @()
 $LastDateInFile = $TwoMonthArray.date | select -Last 1
 $SingleDay = [datetime]$LastDateInFile
 $SingleDayYesterday = $SingleDay.AddDays(-1)
@@ -81,19 +92,21 @@ $CDayCost = [math]::round($($CDay | Select-Object -ExpandProperty ExtendedCost |
 $DaySum = 1 - ($CDayCost / $YDayCost)
 $DayDifference = "{0:P0}" -f $DaySum
 ### Write Output 
-Write-Host "Daily Average Costs for ($FilterCurrentDay):" -ForegroundColor cyan
+$body += "Daily Average Costs for ($($FilterCurrentDay)):"
 ForEach ($UniqueSubscription in $SubscriptionArray) {
     $UniqueAccount = [math]::round($($CDay | Where {$_."Account Name" -eq "$UniqueSubscription"} | Select-Object -ExpandProperty ExtendedCost | Measure-Object -sum).sum,2)
-    Write-Host "$UniqueSubscription = "$"$UniqueAccount"
+    $body += "$UniqueSubscription = $("$"+$UniqueAccount)"
 }
-Write-Host "All Subscriptions ($FilterPreviousDay) = "$"$YDayCost"
-Write-Host "All Subscriptions ($FilterCurrentDay) = "$"$CDayCost"
+$body += "All Subscriptions ($($FilterPreviousDay)) = $("$" + $YDayCost)"
+$body += "All Subscriptions ($($FilterCurrentDay)) = $("$" + $CDayCost)"
 if ($DayDifference -like "-*") {
-    Write-Host "Total Spending for ($FilterCurrentDay) is $($DayDifference.trim("-")) More Than ($FilterPreviousDay)" -ForegroundColor Red
+    $body += "Total Spending for ($($FilterCurrentDay)) is $($($DayDifference.trim("-"))) More Than ($($FilterPreviousDay))"
 } Else {
-    Write-Host "Total Spending for ($FilterCurrentDay) is $DayDifference Less Than ($FilterPreviousDay)" -ForegroundColor Green
+    $body += "Total Spending for ($($FilterCurrentDay)) is $($DayDifference) Less Than ($(($FilterPreviousDay)))"
 }
-Write-Host "`n"
+$body += " "
+#### Create Email Body
+
 
 # Last 7 Day Average Costs
 ## Calculate Date Ranges
@@ -113,25 +126,26 @@ $Back14Days = $SplitFixFormat14Days[1] + "/" + $SplitFixFormat14Days[2] + "/" + 
 $SevenDayRange = $TwoMonthArray | Where-Object {$_.date -gt $Back7Days -AND $_.date -lt $FilterCurrentDay}
 $FourteenDayRange = $TwoMonthArray | Where-Object {$_.date -gt $Back14Days -AND $_.date -lt $Back8Days}
 ## Do Work
-$WeekSum = 1 - ($SevenDaycost / $FourteenDayCost)
-$WeekDifference = "{0:P0}" -f $Weeksum
 $SevenDayCost = [math]::round($($SevenDayRange | Select-Object -ExpandProperty ExtendedCost | Measure-Object -Sum).sum,2)
 $FourteenDayCost = [math]::round($($FourteenDayRange | Select-Object -ExpandProperty ExtendedCost | Measure-Object -Sum).sum,2)
+$WeekSum = 1 - ($SevenDaycost / $FourteenDayCost)
+$WeekDifference = "{0:P0}" -f $Weeksum
 ### Write Output 
-Write-Host "Last 7 Day Average Costs ($FilterCurrentDay - $Back7Days):" -ForegroundColor cyan
+$body += "Last 7 Day Average Costs ($($FilterCurrentDay + " - " + $Back7Days)):"
 ForEach ($UniqueSubscription in $SubscriptionArray) {
     $UniqueAccount = [math]::round($($SevenDayRange | ? {$_."Account Name" -eq "$UniqueSubscription"} | Select-Object -ExpandProperty ExtendedCost | Measure-Object -sum).sum,2)
-    Write-Host "$UniqueSubscription = "$"$UniqueAccount"
+    $body += "$UniqueSubscription = $("$"+$UniqueAccount)"
 }
-Write-Host "All Subscriptions ($Back8Days - $Back14Days) = "$"$FourteenDayCost"
-Write-Host "All Subscriptions ($FilterCurrentDay - $Back7Days) = "$"$SevenDayCost"
+$body += "All Subscriptions ($($Back8Days + " - " + $Back14Days)) = $("$"+$FourteenDayCost)"
+
+$body += "All Subscriptions ($($FilterCurrentDay + " - " + $Back7Days)) = $("$"+$SevenDayCost)"
 
 if ($WeekDifference -like "-*") {
-    Write-Host "Total Spending For ($FilterCurrentDay - $Back7Days) is $($WeekDifference.trim("-")) More Than ($Back8Days - $Back14Days)" -ForegroundColor Red
+    $body += "Total Spending For ($($FilterCurrentDay + " - " + $Back7Days)) is $($WeekDifference.trim("-")) More Than $(($Back8Days - $Back14Days))"
 } Else {
-    Write-Host "Total Spending For ($FilterCurrentDay - $Back7Days) is $WeekDifference Less Than ($Back8Days - $Back14Days)" -ForegroundColor Green
+    $body += "Total Spending For ($($FilterCurrentDay + " - " + $Back7Days)) is $($WeekDifference) Less Than ($($Back8Days + " - " + $Back14Days))"
 }
-Write-Host "`n"
+$body += " "
 
 # Total Monthly Cost
 ## Do Work
@@ -140,22 +154,44 @@ $MonthCost = [math]::round($($CurrentMonthArray | Select-Object -ExpandProperty 
 $MonthSum = 1 - ($MonthCost / $LastMonthCost)
 $MonthDifference = "{0:P0}" -f $MonthSum
 ### Write Output 
-Write-Host "Total Monthly Cost ($Month):" -ForegroundColor cyan
+$body += "Total Monthly Cost ($($Month)):"
 ForEach ($UniqueSubscription in $SubscriptionArray) {
     $UniqueAccount = [math]::round($($CurrentMonthArray | Where {$_."Account Name" -eq "$UniqueSubscription"} | Select-Object -ExpandProperty ExtendedCost | measure-object -sum).sum,2)
-    Write-Host "$UniqueSubscription = "$"$UniqueAccount"
+    $body += "$UniqueSubscription = $("$"+$UniqueAccount)"
 }
-Write-Host "All Subscriptions ($lastmonth) = "$"$LastMonthCost"
-Write-Host "All Subscriptions ($month) = "$"$MonthCost"
+$body += "All Subscriptions ($($lastmonth)) = $("$"+$LastMonthCost)"
+$body += "All Subscriptions ($($month)) = $("$"+$MonthCost)"
 if ($MonthDifference -like "-*") {
-    Write-Host "Total Spending for ($Month) Is $($MonthDifference.trim("-")) More Than ($LastMonth)" -ForegroundColor Red
+    $body += "Total Spending for ($($Month)) Is $($($MonthDifference.trim("-"))) More Than ($($LastMonth))"
 } Else {
-    Write-Host "Total Spending for ($Month) Is $MonthDifference Less Than ($LastMonth)" -ForegroundColor Green
+    $body += "Total Spending for ($($Month)) Is $($MonthDifference) Less Than ($($LastMonth))"
 }
-Write-Host "`n"
-
+$body += " "
+$body1 = @()
 # Show Table For Resources Used Today
 if ($DailyDetails -eq $true) {
-Write-Host "Resource Burn Rate For ($FilterCurrentDay):" -ForegroundColor cyan
-Write-Host $Table.trim()
+$body += "Resource Burn Rate For ($($FilterCurrentDay)):"
+$body += " "
+$body1 += $($Table.trim())
+}
+$body
+$body1
+
+# email body format
+
+#Below is the email and is set to work with Office 365. 
+if ($SMTPSendEmail -eq $true) {
+$a = "<style>"
+$a = $a + "TABLE{border-width: 1px;border-style: solid;border-color: black;border-collapse: collapse;}"
+$a = $a + "TH{border-width: 1px;padding: 5px;border-style: solid;border-color: black}"
+$a = $a + "TD{border-width: 1px;padding: 5px;border-style: solid;border-color: black}"
+$a = $a + "</style>"
+$dbody1 = $body | foreach {[pscustomobject]@{'name'=$_}} | ConvertTo-Html -Head $a
+$dbody2 = [string]$dbody1
+$dbody2 = $dbody2 -replace '<th>\*</th>','<th></th>'
+$emaildetails = $CDay  | Sort-Object -Property "Account Name",ExtendedCost -Descending | ConvertTo-Html -Head $a -Property "Account Name", Product, date, "Consumed Quantity", ResourceRate, ExtendedCost
+$emaildetailsformat = [string]$emaildetails
+$secpasswd = ConvertTo-SecureString $SMTPAuthorizedPassword -AsPlainText -Force
+$mycreds = New-Object System.Management.Automation.PSCredential ($SMTPAutherizedUser, $secpasswd)
+Send-MailMessage -From $SMTPAutherizedUser -To $SMTPSendToUsers -Body ($dbody2 + $emaildetailsformat) -Subject "EA Cost Summary" -SmtpServer $SMTPServer -Credential $mycreds -UseSsl -BodyAsHtml
 }
