@@ -3,13 +3,13 @@ Detailed breakdown of daily resource, daily average, and month to date burnrate.
 
 #### Requirements
 
-* $DaysToGoBack           - The days back you wish to use as a starting date, Default is 0 (Today even though the report is likely not contain todays data the script will use the last date in the file as the default starting date).
+* DaysToGoBack           - The days back you wish to use as a starting date, Default is 0 (Today even though the report is likely not contain todays data the script will use the last date in the file as the default starting date).
 
-* $enrollmentNumber       - Your EA Enrollment Number
+* enrollmentNumber       - Your EA Enrollment Number
 
-* $accesskey              - Your access key
+* accesskey              - Your access key
 
-* $DailyDetails           - If you put in this switch you will get a detailed resource spend on the $DaysToGoBack date.
+* DailyDetails           - If you put in this switch you will get a detailed resource spend on the $DaysToGoBack date.
 
 * SMTPSendEmail           - Your access key
 
