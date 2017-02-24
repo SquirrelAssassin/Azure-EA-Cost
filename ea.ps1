@@ -47,18 +47,6 @@ $Content1 = ($Response1.Content -split '[\r\n]') |? {$_}
 # Convert From CSV To An Object
 $CurrentMonthArray = $Content | Where-Object { [regex]::matches($_,",").count -gt 28} | ConvertFrom-Csv
 $LastMonthArray = $Content1 | Where-Object { [regex]::matches($_,",").count -gt 28} | ConvertFrom-Csv
-
-# Make the cents readable
-$CurrentMonthArray | Foreach {
-$rr = [math]::round($_.resourcerate,2); $_.resourcerate = $rr
-$ec = [math]::round($_.extendedcost,2); $_.extendedcost = $ec
-$ec = [math]::round($_."consumed quantity",2); $_."consumed quantity" = $ec
-} 
-$LastMonthArray | Foreach {
-$rr1 = [math]::round($_.resourcerate,2); $_.resourcerate = $rr1
-$ec1 = [math]::round($_.extendedcost,2); $_.extendedcost = $ec1
-$ec1 = [math]::round($_."consumed quantity",2); $_."consumed quantity" = $ec1
-} 
 $TwoMonthArray = $LastMonthArray + $CurrentMonthArray
 
 # Make An Array For All Subscriptions Containing Unique Values Only
