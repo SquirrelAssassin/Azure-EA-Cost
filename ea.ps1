@@ -58,6 +58,7 @@ ForEach ($subscription in $CurrentMonthArray) {
   }
 }
 
+
 # Show Info For A Single Day
 ## Get Dates
 $Body = @()
@@ -92,11 +93,37 @@ if ($DayDifference -like "-*") {
 } Else {
     $body += "Total Spending for ($($FilterCurrentDay)) is $($DayDifference) Less Than ($(($FilterPreviousDay)))"
 }
-$body += " "unt = [math]::round($($SevenDayRange | ? {$_."Account Name" -eq "$UniqueSubscription"} | Select-Object -ExpandProperty ExtendedCost | Measure-Object -sum).sum,2)
+$body += " "
+
+# Last 7 Day Average Costs
+## Calculate Date Ranges
+$BeginningDay = [datetime]$FilterCurrentDay
+$GoBack7Days = $BeginningDay.AddDays(-6)
+$GoBack8Days = $BeginningDay.AddDays(-7)
+$GoBack14Days = $BeginningDay.AddDays(-13)
+$FixFormat7Days = Get-Date $GoBack7Days -Format u
+$FixFormat8Days = Get-Date $GoBack8Days -Format u
+$FixFormat14Days = Get-Date $GoBack14Days -Format u
+$SplitFixFormat7Days = $FixFormat7Days -split {$_ -eq "-" -or $_ -eq " "}
+$SplitFixFormat8Days = $FixFormat8Days -split {$_ -eq "-" -or $_ -eq " "}
+$SplitFixFormat14Days = $FixFormat14Days -split {$_ -eq "-" -or $_ -eq " "}
+$Back7Days = $SplitFixFormat7Days[1] + "/" + $SplitFixFormat7Days[2] + "/" + $SplitFixFormat7Days[0]
+$Back8Days = $SplitFixFormat8Days[1] + "/" + $SplitFixFormat8Days[2] + "/" + $SplitFixFormat8Days[0]
+$Back14Days = $SplitFixFormat14Days[1] + "/" + $SplitFixFormat14Days[2] + "/" + $SplitFixFormat14Days[0]
+$SevenDayRange = $TwoMonthArray | Where-Object {$_.date -gt $Back7Days -AND $_.date -lt $FilterCurrentDay}
+$FourteenDayRange = $TwoMonthArray | Where-Object {$_.date -gt $Back14Days -AND $_.date -lt $Back8Days}
+## Do Work
+$SevenDayCost = [math]::round($($SevenDayRange | Select-Object -ExpandProperty ExtendedCost | Measure-Object -Sum).sum,2)
+$FourteenDayCost = [math]::round($($FourteenDayRange | Select-Object -ExpandProperty ExtendedCost | Measure-Object -Sum).sum,2)
+$WeekSum = 1 - ($SevenDaycost / $FourteenDayCost)
+$WeekDifference = "{0:P0}" -f $Weeksum
+### Write Output 
+$body += "Last 7 Day Average Costs ($($FilterCurrentDay + " - " + $Back7Days)):"
+ForEach ($UniqueSubscription in $SubscriptionArray) {
+    $UniqueAccount = [math]::round($($SevenDayRange | ? {$_."Account Name" -eq "$UniqueSubscription"} | Select-Object -ExpandProperty ExtendedCost | Measure-Object -sum).sum,2)
     $body += "$UniqueSubscription = $("$"+$UniqueAccount)"
 }
 $body += "All Subscriptions ($($Back8Days + " - " + $Back14Days)) = $("$"+$FourteenDayCost)"
-
 $body += "All Subscriptions ($($FilterCurrentDay + " - " + $Back7Days)) = $("$"+$SevenDayCost)"
 
 if ($WeekDifference -like "-*") {
@@ -105,6 +132,7 @@ if ($WeekDifference -like "-*") {
     $body += "Total Spending For ($($FilterCurrentDay + " - " + $Back7Days)) is $($WeekDifference) Less Than ($($Back8Days + " - " + $Back14Days))"
 }
 $body += " "
+
 
 # Total Monthly Cost
 ## Do Work
